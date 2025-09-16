@@ -1,4 +1,3 @@
-
 package com.example.calculadora
 
 import android.os.Bundle
@@ -12,19 +11,21 @@ import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var tvDisplay: TextView
+    private lateinit var tvHistory: TextView
 
     private var currentInput: String = ""
     private var operand: Double? = null
     private var pendingOp: String? = null
+    private var historyText: String = ""
+    private var isResultDisplayed: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // TextView de display
         tvDisplay = findViewById(R.id.txtResultado)
+        tvHistory = findViewById(R.id.txtHistory)
 
-        // Botões de dígitos
         val digits = listOf(
             "0" to R.id.btn0,
             "1" to R.id.btn1,
@@ -42,7 +43,6 @@ class MainActivity : AppCompatActivity() {
             findViewById<Button>(id).setOnClickListener { appendDigit(digit) }
         }
 
-        // Botões de operações
         val ops = listOf(
             "+" to R.id.btnSomar,
             "-" to R.id.btnSubtrair,
@@ -53,45 +53,64 @@ class MainActivity : AppCompatActivity() {
             findViewById<Button>(id).setOnClickListener { onOperator(op) }
         }
 
-        // Botão igual
         findViewById<Button>(R.id.btnIgual).setOnClickListener { onEquals() }
-
-        // Botão limpar tudo
         findViewById<Button>(R.id.btnClear).setOnClickListener { clearAll() }
-
-        // Botão backspace
         findViewById<Button>(R.id.btnBackspace).setOnClickListener { backspace() }
 
         updateDisplay()
+        updateHistoryDisplay()
     }
 
     private fun appendDigit(d: String) {
+        if (isResultDisplayed) {
+            currentInput = ""
+            operand = null
+            pendingOp = null
+            isResultDisplayed = false
+        }
         if (d == "." && currentInput.contains(".")) return
         currentInput = if (currentInput == "0") d else currentInput + d
         updateDisplay()
     }
 
     private fun onOperator(op: String) {
+        if (isResultDisplayed) {
+            isResultDisplayed = false
+        }
         if (currentInput.isNotEmpty()) {
             val value = currentInput.toDoubleOrNull()
             if (value != null) {
-                if (operand == null) operand = value
-                else operand = performOperation(operand!!, value, pendingOp)
+                if (operand == null) {
+                    operand = value
+                } else {
+                    val result = performOperation(operand!!, value, pendingOp)
+                    val operation = "${operand} ${pendingOp} ${value} = ${result}\n"
+                    historyText += operation
+                    operand = result
+                }
             }
             currentInput = ""
         }
         pendingOp = op
         updateDisplay()
+        updateHistoryDisplay()
     }
 
     private fun onEquals() {
         if (operand != null && currentInput.isNotEmpty()) {
             val value = currentInput.toDoubleOrNull() ?: return
             val result = performOperation(operand!!, value, pendingOp)
+
+            val operation = "${operand} ${pendingOp} ${value} = ${result}\n"
+            historyText += operation
+
+            currentInput = result.toString()
             operand = null
             pendingOp = null
-            currentInput = result.toString()
+            isResultDisplayed = true
+
             updateDisplay()
+            updateHistoryDisplay()
         }
     }
 
@@ -112,7 +131,10 @@ class MainActivity : AppCompatActivity() {
         currentInput = ""
         operand = null
         pendingOp = null
+        historyText = ""
+        isResultDisplayed = false
         updateDisplay()
+        updateHistoryDisplay()
     }
 
     private fun backspace() {
@@ -123,7 +145,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDisplay() {
-        tvDisplay.text = if (currentInput.isNotEmpty()) currentInput else (operand?.toString() ?: "0")
+        val displayStr = StringBuilder()
+        if (operand != null) {
+            displayStr.append(operand)
+            if (pendingOp != null) {
+                displayStr.append(" ").append(pendingOp).append(" ")
+            }
+        }
+        displayStr.append(currentInput)
+
+        tvDisplay.text = if (displayStr.toString().isEmpty()) "0" else displayStr.toString()
+    }
+
+    private fun updateHistoryDisplay() {
+        tvHistory.text = historyText
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -131,6 +166,8 @@ class MainActivity : AppCompatActivity() {
         outState.putString("currentInput", currentInput)
         outState.putDouble("operand", operand ?: Double.NaN)
         outState.putString("pendingOp", pendingOp)
+        outState.putString("historyText", historyText)
+        outState.putBoolean("isResultDisplayed", isResultDisplayed)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -139,6 +176,9 @@ class MainActivity : AppCompatActivity() {
         val opnd = savedInstanceState.getDouble("operand", Double.NaN)
         operand = if (opnd.isNaN()) null else opnd
         pendingOp = savedInstanceState.getString("pendingOp")
+        historyText = savedInstanceState.getString("historyText", "")
+        isResultDisplayed = savedInstanceState.getBoolean("isResultDisplayed", false)
         updateDisplay()
+        updateHistoryDisplay()
     }
 }
